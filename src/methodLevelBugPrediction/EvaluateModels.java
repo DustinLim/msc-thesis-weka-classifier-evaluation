@@ -4,14 +4,17 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Random;
 import java.util.Scanner;
 import java.util.Vector;
 
 import methodLevelBugPrediction.utilities.FileUtilities;
 import weka.attributeSelection.CfsSubsetEval;
 import weka.attributeSelection.GreedyStepwise;
+import weka.classifiers.AbstractClassifier;
 import weka.classifiers.Classifier;
 import weka.classifiers.Evaluation;
 import weka.classifiers.bayes.NaiveBayes;
@@ -27,37 +30,40 @@ import weka.core.Attribute;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils;
 import weka.filters.Filter;
+import weka.filters.MultiFilter;
 import weka.filters.supervised.instance.ClassBalancer;
 import weka.filters.unsupervised.attribute.Remove;
 
 public class EvaluateModels {
+	
+	private static final String WORKING_PATH_INPUT = "input/";
+	private static final String WORKING_PATH_OUTPUT = "output/";
 
-    private static String output = "project-name,classifier,model-name,TP,FP,FN,TN,accuracy,precision,recall,f-measure,auc-roc,mcc\n";
+    private static String output = "project-name;classifier;model-name;TP;FP;FN;TN;accuracy;precision;recall;f-measure;auc-roc;mcc\n";
+    private static String output2 = "";
     private static String projectName = "";
 
     public static void main(String[] args) {
 
-        HashMap<String, Classifier> classifiers = new HashMap<String, Classifier>();
-        classifiers.put("SimpleLogistic", new SimpleLogistic());
-        classifiers.put("MultilayerPerceptron", new MultilayerPerceptron());
-        // classifiers.put("ADTree", new ADTree());
-        classifiers.put("RandomForest", new RandomForest());
-        classifiers.put("J48", new J48());
-        //
-        classifiers.put("NaiveBayes", new NaiveBayes());
-        classifiers.put("Logistic", new Logistic());
-        classifiers.put("DecisionTable", new DecisionTable());
+        LinkedHashMap<String, Classifier> classifiers = new LinkedHashMap<String, Classifier>();
+        //classifiers.put("ZeroR", new weka.classifiers.rules.ZeroR());
+        classifiers.put("SMO", new weka.classifiers.functions.SMO());        
+        classifiers.put("REPTree", new weka.classifiers.trees.REPTree());
+        classifiers.put("RandomForest", new weka.classifiers.trees.RandomForest());
+        classifiers.put("NaiveBayes", new weka.classifiers.bayes.NaiveBayes());
+        classifiers.put("Logistic", new weka.classifiers.functions.Logistic());
+        classifiers.put("IBk", new weka.classifiers.lazy.IBk());
 
         try {
-            Vector<String> projects = readProjects("/Users/luca/TUProjects/SANER/projects_to_classify.txt");
+            Vector<String> projects = readProjects(WORKING_PATH_INPUT + "projects_to_classify.txt");
             for (String project : projects) {
-                Vector<String> releases = readReleases("/Users/luca/TUProjects/SANER/outputOK/" + project + "_releases.csv");
+                Vector<String> releases = readReleases(WORKING_PATH_INPUT + project + "_releases.csv");
                 // File dir = new File("/Users/luca/TUProjects/SANER/output/");
 
                 for (int i = 0; i < releases.size() - 1; i++) {
                     // if (!project.isHidden()) {
-                    String trainingSet = "/Users/luca/TUProjects/SANER/outputOK/" + project + "/" + releases.get(i) + "_allMetrics.csv";
-                    String testSet = "/Users/luca/TUProjects/SANER/outputOK/" + project + "/" + releases.get(i + 1) + "_allMetrics.csv";
+                    String trainingSet = WORKING_PATH_INPUT + project + releases.get(i) + ".csv";
+                    String testSet = WORKING_PATH_INPUT + project + releases.get(i + 1) + ".csv";
 
                     System.out.println("Evaluating " + releases.get(i) + "/" + (releases.size() - 1) + " ===> " + trainingSet);
 
@@ -68,39 +74,31 @@ public class EvaluateModels {
                     // EvaluateModels.projectName = trainingSet.substring(trainingSet.lastIndexOf("/") + 1, trainingSet.length());
                     EvaluateModels.projectName = project;
 
-                    Instances onlyStructuralModelTraining = EvaluateModels.selectStructuralFeaturesOnly(originTraining);
-                    Instances onlyChangeModelTraining = EvaluateModels.selectChangeFeaturesOnly(originTraining);
-                    Instances onlyCommentModelTraining = EvaluateModels.selectCommentFeaturesOnly(originTraining);
-                    Instances structuralAndChangeModelTraining = EvaluateModels.selectStructuralAndChangeFeaturesOnly(originTraining);
-                    Instances structuralAndCommentTraining = EvaluateModels.selectStructuralAndCommentFeaturesOnly(originTraining);
-                    Instances changeAndCommentTraining = EvaluateModels.selectChangeAndCommentFeaturesOnly(originTraining);
+                    /*
                     Instances allModelTraining = EvaluateModels.selectAllFeatures(originTraining);
-
-                    Instances onlyStructuralModelTest = EvaluateModels.selectStructuralFeaturesOnly(originTest);
-                    Instances onlyChangeModelTesting = EvaluateModels.selectChangeFeaturesOnly(originTest);
-                    Instances onlyCommentModelTestign = EvaluateModels.selectCommentFeaturesOnly(originTest);
-                    Instances structuralAndChangeModelTesting = EvaluateModels.selectStructuralAndChangeFeaturesOnly(originTest);
-                    Instances structuralAndCommentTesting = EvaluateModels.selectStructuralAndCommentFeaturesOnly(originTest);
-                    Instances changeAndCommentTesting = EvaluateModels.selectChangeAndCommentFeaturesOnly(originTest);
                     Instances allModelTesting = EvaluateModels.selectAllFeatures(originTest);
+                    */
+
+                    output2 += String.format("\\textbf{%s} &&&&&& \\\\ %s", EvaluateModels.projectName, System.lineSeparator());
 
                     for (Entry<String, Classifier> entry : classifiers.entrySet()) {
 
-                        EvaluateModels.evaluateModel(entry.getValue(), onlyStructuralModelTraining, onlyStructuralModelTest, "structuralModel", entry.getKey());
-                        EvaluateModels.evaluateModel(entry.getValue(), onlyChangeModelTraining, onlyChangeModelTesting, "changeModel", entry.getKey());
-                        EvaluateModels.evaluateModel(entry.getValue(), onlyCommentModelTraining, onlyCommentModelTestign, "commentModel", entry.getKey());
-                        EvaluateModels.evaluateModel(entry.getValue(), structuralAndChangeModelTraining, structuralAndChangeModelTesting, "structuralAndChangeModel", entry.getKey());
-                        EvaluateModels.evaluateModel(entry.getValue(), structuralAndCommentTraining, structuralAndCommentTesting, "structuralAndCommentModel", entry.getKey());
-                        EvaluateModels.evaluateModel(entry.getValue(), changeAndCommentTraining, changeAndCommentTesting, "changeAndCommentModel", entry.getKey());
-
+                    	/*
                         EvaluateModels.evaluateModel(entry.getValue(), allModelTraining, allModelTesting, "allModel", entry.getKey());
+                        */
+
+                        EvaluateModels.evaluateModel(entry.getValue(), originTraining, originTest, "default", entry.getKey());
+                        EvaluateModels.output += "\n";
                     }
                     // }
                 }
             }
 
             // output = output.replaceAll("\\.", ",");
-            FileUtilities.writeFile(output, "/Users/luca/TUProjects/SANER/outputOK/output.csv");
+            System.out.println();
+            System.out.println(EvaluateModels.output2);
+            
+            FileUtilities.writeFile(output, WORKING_PATH_OUTPUT + "outputOK/output.csv");
 
             System.out.println("\n ******** Ended ******** \n");
         } catch (Exception e) {
@@ -144,73 +142,50 @@ public class EvaluateModels {
 
     private static void evaluateModel(Classifier pClassifier, Instances pInstancesTraining, Instances pInstanceTesting, String pModelName, String pClassifierName) throws Exception {
 
-        // other options
-        // int folds = 10;
+        int folds = 10;
 
         // randomize data
-        // Random rand = new Random(42);
-        // Instances randData = new Instances(pInstancesTraining);
-        // randData.randomize(rand);
-        // if (randData.classAttribute().isNominal())
-        // randData.stratify(folds);
+        Random rand = new Random(42);
+        Instances randData = new Instances(pInstancesTraining);
+        randData.randomize(rand);
+        if (randData.classAttribute().isNominal())
+        	randData.stratify(folds);
 
+    	// apply filter(s)
+        MultiFilter filter = new MultiFilter();
+        filter.setInputFormat(randData);
+        filter.setFilters(new Filter[]{
+        		new weka.filters.unsupervised.attribute.Normalize()
+        });
+        randData = Filter.useFilter(randData, filter);
+        
         // perform cross-validation and add predictions
         // Instances predictedData = null;
         Evaluation eval = new Evaluation(pInstancesTraining);
 
-        int positiveValueIndexOfClassFeature = 0;
-        // for (int n = 0; n < folds; n++) {
-        // Instances train = randData.trainCV(folds, n);
-        // Instances test = randData.testCV(folds, n);
-        // // the above code is used by the StratifiedRemoveFolds filter, the
-        // // code below by the Explorer/Experimenter:
-        // // Instances train = randData.trainCV(folds, n, rand);
-        //
-        int classFeatureIndex = 0;
-        for (int i = 0; i < pInstancesTraining.numAttributes(); i++) {
-            if (pInstancesTraining.attribute(i).name().equals("buggy")) {
-                classFeatureIndex = i;
-                break;
-            }
+        int positiveValueIndexOfClassFeature = 1;
+
+        for (int n = 0; n < folds; n++) {
+        	        	
+        	// Split into training / test.
+            Instances train = randData.trainCV(folds, n);
+            Instances test = randData.testCV(folds, n);        	
+
+            // Filter(s) on training only (!)
+            MultiFilter multiFilter = new MultiFilter();
+            multiFilter.setInputFormat(train);
+            multiFilter.setFilters(new Filter[]{
+            		new weka.filters.supervised.instance.ClassBalancer()
+            });            
+            train = Filter.useFilter(train, multiFilter);
+
+            // Build and evaluate classifier
+            pClassifier.buildClassifier(train);
+            eval.evaluateModel(pClassifier, test);
         }
+        //System.out.println(eval.toSummaryString("=== " + pClassifierName + ": Summary  ===", false));
+        System.out.println(eval.toClassDetailsString("=== " + pClassifierName + ": Detailed Accuracy By Class ==="));
 
-        Attribute classFeature = pInstancesTraining.attribute(classFeatureIndex);
-        for (int i = 0; i < classFeature.numValues(); i++) {
-            if (classFeature.value(i).equals("TRUE")) {
-                positiveValueIndexOfClassFeature = i;
-            }
-        }
-        //
-        // train.setClassIndex(classFeatureIndex);
-        // test.setClassIndex(classFeatureIndex);
-
-        AttributeSelectedClassifier classifier = new AttributeSelectedClassifier();
-        CfsSubsetEval cfs = new CfsSubsetEval();
-        GreedyStepwise search = new GreedyStepwise();
-        search.setSearchBackwards(true);
-
-        classifier.setClassifier(pClassifier);
-        classifier.setEvaluator(cfs);
-        classifier.setSearch(search);
-
-        ClassBalancer filter = new ClassBalancer();
-        filter.setInputFormat(pInstancesTraining);
-        Instances balancedInstances = Filter.useFilter(pInstancesTraining, filter);
-
-        // build and evaluate classifier
-        classifier.buildClassifier(balancedInstances);
-        eval.evaluateModel(classifier, pInstanceTesting);
-
-        // add predictions
-
-        // Instances pred = Filter.useFilter(pInstanceTesting, filter);
-        //
-        // if (predictedData == null)
-        // predictedData = new Instances(pred, 0);
-        //
-        // for (int j = 0; j < pred.numInstances(); j++)
-        // predictedData.add(pred.instance(j));
-        // // }
 
         double mcc = eval.matthewsCorrelationCoefficient(positiveValueIndexOfClassFeature);
 
@@ -224,10 +199,29 @@ public class EvaluateModels {
         double fmeasure = 2
                 * ((eval.precision(positiveValueIndexOfClassFeature) * eval.recall(positiveValueIndexOfClassFeature)) / (eval.precision(positiveValueIndexOfClassFeature) + eval.recall(positiveValueIndexOfClassFeature)));
 
-        EvaluateModels.output += EvaluateModels.projectName + "," + pClassifierName + "," + pModelName + "," + eval.numTruePositives(positiveValueIndexOfClassFeature) + ","
-                + eval.numFalsePositives(positiveValueIndexOfClassFeature) + "," + eval.numFalseNegatives(positiveValueIndexOfClassFeature) + "," + eval.numTrueNegatives(positiveValueIndexOfClassFeature) + "," + accuracy
-                + "," + eval.precision(positiveValueIndexOfClassFeature) + "," + eval.recall(positiveValueIndexOfClassFeature) + "," + fmeasure + "," + eval.areaUnderROC(positiveValueIndexOfClassFeature) + "," + mcc
-                + "\n";
+        EvaluateModels.output += EvaluateModels.projectName + ";" 
+        		+ pClassifierName + ";" 
+        		+ pModelName + ";" 
+        		+ eval.numTruePositives(positiveValueIndexOfClassFeature) + ";"
+                + eval.numFalsePositives(positiveValueIndexOfClassFeature) + ";" 
+        		+ eval.numFalseNegatives(positiveValueIndexOfClassFeature) + ";" 
+                + eval.numTrueNegatives(positiveValueIndexOfClassFeature) + ";" 
+        		+ accuracy + ";" 
+                + eval.precision(positiveValueIndexOfClassFeature) + ";" 
+        		+ eval.recall(positiveValueIndexOfClassFeature) + ";" 
+                + fmeasure + ";" 
+        		+ eval.areaUnderROC(positiveValueIndexOfClassFeature) + ";" 
+                + mcc + "\n";
+        
+        output2 += String.format("%s & %s & %s & %s & %.2f & %.2f & %.2f \\\\ %s", 
+        		pClassifierName,
+        		eval.numTruePositives(positiveValueIndexOfClassFeature),
+                eval.numFalsePositives(positiveValueIndexOfClassFeature),
+        		eval.numFalseNegatives(positiveValueIndexOfClassFeature), 
+                eval.precision(positiveValueIndexOfClassFeature),
+        		eval.recall(positiveValueIndexOfClassFeature), 
+                fmeasure,
+                System.lineSeparator());        
     }
 
     private static Instances readFile(String pPath) throws Exception {
@@ -242,83 +236,6 @@ public class EvaluateModels {
         return data;
     }
 
-    private static Instances selectStructuralFeaturesOnly(Instances pOrigin) throws Exception {
-        // NB: It is an inverted process. To select indexes referring to structural
-        // metrics, you need to remove the indexes that refer to non-structural ones.
-        int[] nonStructuralIndexes = new int[] { 0, 1, 4, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33 };
-
-        Remove remove = new Remove();
-        remove.setAttributeIndicesArray(nonStructuralIndexes);
-        remove.setInputFormat(pOrigin);
-        Instances newData = Filter.useFilter(pOrigin, remove);
-
-        return newData;
-    }
-
-    private static Instances selectCommentFeaturesOnly(Instances pOrigin) throws Exception {
-        // NB: It is an inverted process. To select indexes referring to structural
-        // metrics, you need to remove the indexes that refer to non-structural ones.
-        int[] nonStructuralIndexes = new int[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33 };
-
-        Remove remove = new Remove();
-        remove.setAttributeIndicesArray(nonStructuralIndexes);
-        remove.setInputFormat(pOrigin);
-        Instances newData = Filter.useFilter(pOrigin, remove);
-
-        return newData;
-    }
-
-    private static Instances selectChangeFeaturesOnly(Instances pOrigin) throws Exception {
-        // NB: It is an inverted process. To select indexes referring to structural
-        // metrics, you need to remove the indexes that refer to non-structural ones.
-        int[] nonStructuralIndexes = new int[] { 0, 1, 4, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 };
-
-        Remove remove = new Remove();
-        remove.setAttributeIndicesArray(nonStructuralIndexes);
-        remove.setInputFormat(pOrigin);
-        Instances newData = Filter.useFilter(pOrigin, remove);
-
-        return newData;
-    }
-
-    private static Instances selectStructuralAndChangeFeaturesOnly(Instances pOrigin) throws Exception {
-        // NB: It is an inverted process. To select indexes referring to structural
-        // metrics, you need to remove the indexes that refer to non-structural ones.
-        int[] nonStructuralIndexes = new int[] { 0, 1, 4, 11, 12, 13, 14, 15, 16, 17, 18 };
-
-        Remove remove = new Remove();
-        remove.setAttributeIndicesArray(nonStructuralIndexes);
-        remove.setInputFormat(pOrigin);
-        Instances newData = Filter.useFilter(pOrigin, remove);
-
-        return newData;
-    }
-
-    private static Instances selectStructuralAndCommentFeaturesOnly(Instances pOrigin) throws Exception {
-        // NB: It is an inverted process. To select indexes referring to structural
-        // metrics, you need to remove the indexes that refer to non-structural ones.
-        int[] nonStructuralIndexes = new int[] { 0, 1, 4, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33 };
-
-        Remove remove = new Remove();
-        remove.setAttributeIndicesArray(nonStructuralIndexes);
-        remove.setInputFormat(pOrigin);
-        Instances newData = Filter.useFilter(pOrigin, remove);
-
-        return newData;
-    }
-
-    private static Instances selectChangeAndCommentFeaturesOnly(Instances pOrigin) throws Exception {
-        // NB: It is an inverted process. To select indexes referring to structural
-        // metrics, you need to remove the indexes that refer to non-structural ones.
-        int[] nonStructuralIndexes = new int[] { 0, 1, 4, 2, 3, 5, 6, 7, 8, 9, 10 };
-
-        Remove remove = new Remove();
-        remove.setAttributeIndicesArray(nonStructuralIndexes);
-        remove.setInputFormat(pOrigin);
-        Instances newData = Filter.useFilter(pOrigin, remove);
-
-        return newData;
-    }
 
     private static Instances selectAllFeatures(Instances pOrigin) throws Exception {
         int[] nonHassanIndexes = new int[] { 0, 1, 4 };

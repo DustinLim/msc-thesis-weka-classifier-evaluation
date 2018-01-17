@@ -1,0 +1,4 @@
+1-FeatureEnvy
+2-LargeClass
+3-LongMethod
+4-MessageChains
